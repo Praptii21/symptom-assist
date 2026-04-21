@@ -3,6 +3,11 @@ google-genai
 fastapi
 uvicorn[standard]
 python-dotenv
+groq
+google-genai
+fastapi
+uvicorn[standard]
+python-dotenv
 networkx
 rapidfuzz
 
@@ -12,6 +17,5 @@ scipy
 # chromadb
 
 # For production-grade NLP (upgrade from keyword matching):
-# spacy
-# # then run: python -m spacy download en_core_web_sm
-
+spacy
+# python -m spacy download en_core_web_sm
