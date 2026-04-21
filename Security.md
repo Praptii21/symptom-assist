@@ -11,7 +11,7 @@
 
 ## Reporting a Vulnerability
 
-The Parampara handles financial and credit-related data.
+The  Symptom-assist handles Symbolic Logic (via Knowledge Graphs) and Neural Networks
 We take security vulnerabilities seriously.
 
 **Please do NOT open a public GitHub issue for security vulnerabilities.**
@@ -44,7 +44,7 @@ Instead, report privately via:
 
 - All PRs are reviewed by the maintainer before merging
 - No sensitive data (API keys, credentials) is hardcoded
-- Contributors must follow our [Code of Conduct](docs/CODEOFCONDUCT.md)
+- Contributors must follow our [Code of Conduct](CODEOFCONDUCT.md)
 
 ---
 
