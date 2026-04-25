@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="/static/vendor/split.min.js"></script>
   <style>
     :root {
       --primary: #0f766e;
@@ -56,12 +57,12 @@
 
     /* ---- Chat Section ---- */
     #chat-section {
-      flex: 1;
       display: flex;
       flex-direction: column;
       position: relative;
       background: var(--chat-bg);
-      border-right: 1px solid rgba(226, 232, 240, 0.8);
+      min-width: 0;
+      min-height: 0;
     }
 
     header {
@@ -182,11 +183,49 @@
 
     /* ---- Sidebar Section (Diagnostics) ---- */
     #sidebar {
-      width: 380px;
       background: var(--sidebar-bg);
       display: flex;
       flex-direction: column;
       padding: 0;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    #chat-section,
+    #sidebar {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .gutter {
+      position: relative;
+      flex: 0 0 14px;
+      width: 14px;
+      cursor: col-resize;
+      background: transparent;
+      transition: background 0.2s ease;
+    }
+
+    .gutter::before {
+      content: "";
+      position: absolute;
+      top: 18px;
+      bottom: 18px;
+      left: 50%;
+      width: 4px;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.38);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+      transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .gutter:hover::before,
+    .gutter:active::before,
+    body.is-resizing .gutter::before {
+      background: linear-gradient(180deg, var(--primary-light), var(--primary));
+      box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.12);
+      transform: translateX(-50%) scaleX(1.15);
     }
 
     .sidebar-header {
@@ -378,6 +417,7 @@
     @media (max-width: 1024px) {
       #sidebar { display: none; }
       #root { width: 100vw; height: 100vh; border-radius: 0; }
+      .gutter { display: none !important; }
     }
   </style>
 </head>
@@ -530,6 +570,9 @@
     document.getElementById('panel-graph').classList.toggle('active', tab === 'graph');
     document.getElementById('tab-diag').classList.toggle('active', tab === 'diag');
     document.getElementById('tab-graph').classList.toggle('active', tab === 'graph');
+    if (tab === 'graph') {
+      scheduleGraphRerender(30);
+    }
   }
 
   // ============================================================
@@ -543,10 +586,26 @@
     svg: null,
     gRoot: null,
     linkEls: null,
+    dynamicLinkEls: null,
     nodeEls: null,
     labelEls: null,
     simulation: null,
-    initialized: false
+    initialized: false,
+    resizeTimer: null,
+    width: 0,
+    height: 0
+  };
+
+  const GRAPH_STATE = {
+    symptoms: [],
+    conditions: [],
+    journeyEdges: []
+  };
+
+  const LAYOUT = {
+    split: null,
+    resizeObserver: null,
+    viewportResizeTimer: null
   };
 
   const THEME = {
@@ -565,18 +624,70 @@
       const data = await res.json();
       GRAPH.nodes = data.nodes;
       GRAPH.edges = data.edges;
+      GRAPH.nodeMap = {};
       GRAPH.nodes.forEach(n => GRAPH.nodeMap[n.id] = n);
-      initD3Graph();
       GRAPH.initialized = true;
+      initD3Graph();
     } catch (e) {
       console.error("Failed to load full graph", e);
     }
+  }
+
+  function rememberGraphState(symptoms = [], conditions = [], journeyEdges = []) {
+    GRAPH_STATE.symptoms = [...(symptoms || [])];
+    GRAPH_STATE.conditions = [...(conditions || [])];
+    GRAPH_STATE.journeyEdges = [...(journeyEdges || [])];
+  }
+
+  function hasGraphState() {
+    return GRAPH_STATE.symptoms.length > 0 ||
+      GRAPH_STATE.conditions.length > 0 ||
+      GRAPH_STATE.journeyEdges.length > 0;
+  }
+
+  function resetGraphView() {
+    if (!GRAPH.initialized || !GRAPH.gRoot) return;
+
+    const hint = document.getElementById('graph-empty-hint');
+    if (hint) hint.style.display = '';
+
+    GRAPH.dynamicLinkEls = GRAPH.gRoot.select('.dyn-edges')
+      .selectAll('line')
+      .data([])
+      .join('line');
+
+    GRAPH.nodeEls
+      .interrupt()
+      .attr('fill', THEME.dimmedNode)
+      .attr('r', d => d.type === 'condition' ? 7 : 5);
+
+    GRAPH.labelEls
+      .interrupt()
+      .attr('fill', '#94a3b8')
+      .attr('opacity', 0.7)
+      .attr('font-size', '8px')
+      .style('font-weight', '400');
+
+    GRAPH.linkEls
+      .interrupt()
+      .attr('stroke', THEME.dimmed)
+      .attr('stroke-width', 1)
+      .style('opacity', 0.5);
+
+    document.getElementById('graph-stats').textContent = 'Traversal Graph — awaiting input';
   }
 
   function initD3Graph() {
     const panel = document.getElementById('graph-panel');
     const W = panel.clientWidth || 560;
     const H = panel.clientHeight || 600;
+
+    if (GRAPH.simulation) {
+      GRAPH.simulation.stop();
+    }
+
+    GRAPH.width = W;
+    GRAPH.height = H;
 
     const existing = document.getElementById('graph-svg');
     if (existing) existing.innerHTML = '';
@@ -586,6 +697,20 @@
       .style('font-family', "'Inter', 'Roboto', sans-serif");
 
     GRAPH.svg = svg;
+
+    const defs = svg.append('defs');
+    defs.append('marker')
+      .attr('id', 'timeline-arrow')
+      .attr('viewBox', '0 0 10 10')
+      .attr('refX', 8)
+      .attr('refY', 5)
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .attr('orient', 'auto-start-reverse')
+      .append('path')
+      .attr('d', 'M 0 0 L 10 5 L 0 10 z')
+      .attr('fill', '#fb923c');
+
     const g = svg.append('g').attr('class', 'graph-root');
     GRAPH.gRoot = g;
 
@@ -682,6 +807,12 @@
           ev.subject.fy = null;
         });
     }
+
+    if (hasGraphState()) {
+      highlightGraph(GRAPH_STATE.symptoms, GRAPH_STATE.conditions, GRAPH_STATE.journeyEdges);
+    } else {
+      resetGraphView();
+    }
   }
 
   function normalizeGraphId(text) {
@@ -725,7 +856,16 @@
   }
 
   function highlightGraph(symptoms, conditions, journeyEdges) {
+    rememberGraphState(symptoms, conditions, journeyEdges);
+
     if (!GRAPH.initialized) return;
+
+    if ((!symptoms || symptoms.length === 0) &&
+        (!conditions || conditions.length === 0) &&
+        (!journeyEdges || journeyEdges.length === 0)) {
+      resetGraphView();
+      return;
+    }
 
     const hint = document.getElementById('graph-empty-hint');
     if (hint) hint.style.display = 'none';
@@ -812,6 +952,104 @@
       `Structured Global Graph · ${hlNodes} active nodes · ${dynamicEdges.length} active connections`;
   }
 
+  function scheduleGraphRerender(delay = 120) {
+    if (!GRAPH.initialized) return;
+
+    window.clearTimeout(GRAPH.resizeTimer);
+    GRAPH.resizeTimer = window.setTimeout(() => {
+      const panel = document.getElementById('graph-panel');
+      if (!panel) return;
+
+      const nextWidth = panel.clientWidth || 0;
+      const nextHeight = panel.clientHeight || 0;
+      if (!nextWidth || !nextHeight) return;
+
+      const widthChanged = Math.abs(nextWidth - GRAPH.width) > 2;
+      const heightChanged = Math.abs(nextHeight - GRAPH.height) > 2;
+      if (!widthChanged && !heightChanged) return;
+
+      initD3Graph();
+    }, delay);
+  }
+
+  function getMinPaneWidth() {
+    return Math.max(Math.floor(window.innerWidth * 0.25), 260);
+  }
+
+  function destroySplitLayout() {
+    if (LAYOUT.split) {
+      LAYOUT.split.destroy();
+      LAYOUT.split = null;
+    }
+
+    document.getElementById('chat-section')?.style.removeProperty('width');
+    document.getElementById('chat-section')?.style.removeProperty('flex-basis');
+    document.getElementById('sidebar')?.style.removeProperty('width');
+    document.getElementById('sidebar')?.style.removeProperty('flex-basis');
+    document.body.classList.remove('is-resizing');
+  }
+
+  function initSplitLayout() {
+    const isDesktop = window.innerWidth > 1024;
+
+    if (!isDesktop) {
+      destroySplitLayout();
+      return;
+    }
+
+    if (typeof Split !== 'function') {
+      console.warn('Split.js failed to load; resizable layout unavailable.');
+      return;
+    }
+
+    const sizes = LAYOUT.split && typeof LAYOUT.split.getSizes === 'function'
+      ? LAYOUT.split.getSizes()
+      : [72, 28];
+
+    destroySplitLayout();
+
+    LAYOUT.split = Split(['#chat-section', '#sidebar'], {
+      sizes,
+      minSize: [getMinPaneWidth(), getMinPaneWidth()],
+      gutterSize: 14,
+      cursor: 'col-resize',
+      direction: 'horizontal',
+      onDragStart: () => {
+        document.body.classList.add('is-resizing');
+      },
+      onDrag: () => {
+        scheduleGraphRerender(80);
+      },
+      onDragEnd: () => {
+        document.body.classList.remove('is-resizing');
+        scheduleGraphRerender(40);
+      }
+    });
+  }
+
+  function initGraphResizeObserver() {
+    const panel = document.getElementById('graph-panel');
+    if (!panel || typeof ResizeObserver !== 'function') return;
+
+    if (LAYOUT.resizeObserver) {
+      LAYOUT.resizeObserver.disconnect();
+    }
+
+    LAYOUT.resizeObserver = new ResizeObserver(() => {
+      scheduleGraphRerender();
+    });
+
+    LAYOUT.resizeObserver.observe(panel);
+  }
+
+  function handleViewportResize() {
+    window.clearTimeout(LAYOUT.viewportResizeTimer);
+    LAYOUT.viewportResizeTimer = window.setTimeout(() => {
+      initSplitLayout();
+      scheduleGraphRerender();
+    }, 140);
+  }
+
 
 
 
@@ -889,6 +1127,7 @@
     chatArea.innerHTML = '';
     history = [];
     allSymptoms = [];
+    rememberGraphState([], [], []);
     updateDashboard({
       extracted_symptoms: [],
       top_conditions: [],
@@ -896,6 +1135,7 @@
       graph_followups: [],
       red_flags_detected: []
     });
+    resetGraphView();
     addMessage('bot', "Session reset. How can I help you today?");
   }
 
@@ -1030,6 +1270,9 @@
 
   // Init
   window.onload = () => {
+    initSplitLayout();
+    initGraphResizeObserver();
+    window.addEventListener('resize', handleViewportResize);
     loadFullGraph();
     addMessage('bot', "Welcome to SymptomAssist AI. Describe your symptoms in detail — the medical knowledge graph (built from 41 conditions and 130+ symptoms from a real dataset) will be traversed using BFS to identify likely conditions.\n\nHow are you feeling today?");
   }
