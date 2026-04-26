@@ -8,6 +8,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/split.js/dist/split.min.js"></script>
   <style>
     :root {
       --primary: #0f766e;
@@ -25,17 +28,29 @@
       --urgent: #ef4444;
     }
 
+    .dark-mode {
+      --bg: #0f172a;
+      --chat-bg: #020617;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --sidebar-bg:  #020617;
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: 'Inter', sans-serif;
-      background: radial-gradient(circle at top left, #f1f5f9, #e2e8f0);
+      background: var(--bg);
       height: 100vh;
       display: flex;
       justify-content: center;
       align-items: center;
       color: var(--text-main);
       overflow: hidden;
+    }
+
+    .dark-mode body {
+      background: #020617;
     }
 
     /* ---- Main Layout Container ---- */
@@ -54,14 +69,22 @@
       position: relative;
     }
 
+    .dark-mode #root {
+      background: rgba(2, 6, 23, 0.8);
+    }
+
     /* ---- Chat Section ---- */
     #chat-section {
-      flex: 1;
       display: flex;
       flex-direction: column;
       position: relative;
       background: var(--chat-bg);
-      border-right: 1px solid rgba(226, 232, 240, 0.8);
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .dark-mode #chat-section {
+      background: #020617;
     }
 
     header {
@@ -70,7 +93,7 @@
       align-items: center;
       justify-content: space-between;
       border-bottom: 1px solid #f1f5f9;
-      background: rgba(255, 255, 255, 0.8);
+      background: var(--chat-bg);
     }
 
     .brand { display: flex; align-items: center; gap: 14px; }
@@ -109,6 +132,27 @@
     #chat-area::-webkit-scrollbar { width: 6px; }
     #chat-area::-webkit-scrollbar-track { background: transparent; }
     #chat-area::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    .dark-mode #chat-area::-webkit-scrollbar-thumb {
+      background: #334155;
+    }
+
+    /* Dark mode scrollbar */
+    .dark-mode ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .dark-mode ::-webkit-scrollbar-track {
+      background: #020617;
+    }
+
+    .dark-mode ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 10px;
+    }
+
+    .dark-mode ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
 
     /* Messages */
     .msg { display: flex; gap: 16px; max-width: 80%; opacity: 0; transform: translateY(10px); animation: fadeInMsg 0.4s forwards; }
@@ -145,6 +189,58 @@
       border: 1px solid #fee2e2 !important;
     }
 
+    /* ---- Markdown Rendering in Bot Messages ---- */
+    .bot .msg-bubble p { margin: 0 0 8px; }
+    .bot .msg-bubble p:last-child { margin-bottom: 0; }
+    .bot .msg-bubble ul,
+    .bot .msg-bubble ol { padding-left: 20px; margin: 6px 0; }
+    .bot .msg-bubble li { margin: 3px 0; line-height: 1.5; }
+    .bot .msg-bubble strong { font-weight: 700; }
+    .bot .msg-bubble em { font-style: italic; }
+    .bot .msg-bubble h1,
+    .bot .msg-bubble h2,
+    .bot .msg-bubble h3 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 700;
+      margin: 10px 0 4px;
+      line-height: 1.3;
+      color: var(--text-main);
+    }
+    .bot .msg-bubble h1 { font-size: 16px; }
+    .bot .msg-bubble h2 { font-size: 15px; }
+    .bot .msg-bubble h3 { font-size: 14px; }
+    .bot .msg-bubble code {
+      background: #e2e8f0;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-size: 12.5px;
+      font-family: monospace;
+    }
+    .bot .msg-bubble pre {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 8px 0;
+      overflow-x: auto;
+    }
+    .bot .msg-bubble pre code {
+      background: transparent;
+      padding: 0;
+      font-size: 12px;
+    }
+    .bot .msg-bubble hr {
+      border: none;
+      border-top: 1px solid #e2e8f0;
+      margin: 10px 0;
+    }
+    .bot .msg-bubble blockquote {
+      border-left: 3px solid var(--primary-light);
+      padding-left: 12px;
+      margin: 8px 0;
+      color: var(--text-muted);
+    }
+
     .typing-dots { display: flex; gap: 4px; padding: 12px 16px; background: var(--bg); border-radius: 20px; border: 1px solid #e2e8f0; width: fit-content; }
     .dot { width: 6px; height: 6px; background: #94a3b8; border-radius: 50%; animation: dotBounce 1.4s infinite ease-in-out; }
     .dot:nth-child(2) { animation-delay: 0.2s; }
@@ -152,11 +248,15 @@
     @keyframes dotBounce { 0%, 80%, 100% { transform: scale(1); } 40% { transform: scale(1.4); opacity: 0.5; } }
 
     /* Footer */
-    footer { padding: 24px 32px 32px; background: #fff; position: relative; }
+    footer { padding: 24px 32px 32px; background: var(--chat-bg); position: relative; }
     .input-wrapper {
       display: flex; gap: 12px; background: var(--bg); border: 1.5px solid #e2e8f0;
       border-radius: 16px; padding: 6px; transition: all 0.2s ease;
       box-shadow: var(--shadow-sm);
+    }
+    .dark-mode .input-wrapper {
+      background: #020617;
+      border-color: #1e293b;
     }
     .input-wrapper:focus-within { border-color: var(--primary-light); box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.1); }
 
@@ -182,25 +282,81 @@
 
     /* ---- Sidebar Section (Diagnostics) ---- */
     #sidebar {
-      width: 380px;
       background: var(--sidebar-bg);
       display: flex;
       flex-direction: column;
       padding: 0;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    #chat-section,
+    #sidebar {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .gutter {
+      position: relative;
+      flex: 0 0 14px;
+      width: 14px;
+      cursor: col-resize;
+      background: transparent;
+      transition: background 0.2s ease;
+    }
+
+    .gutter::before {
+      content: "";
+      position: absolute;
+      top: 18px;
+      bottom: 18px;
+      left: 50%;
+      width: 4px;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.38);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+      transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .gutter:hover::before,
+    .gutter:active::before,
+    body.is-resizing .gutter::before {
+      background: linear-gradient(180deg, var(--primary-light), var(--primary));
+      box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.12);
+      transform: translateX(-50%) scaleX(1.15);
+    }
+
+    .dark-mode #sidebar {
+      background: #020617;
     }
 
     .sidebar-header {
       padding: 24px 32px;
       border-bottom: 1px solid rgba(226, 232, 240, 0.8);
-      background: rgba(255, 255, 255, 0.5);
+      background: var(--chat-bg);
     }
+    
+    .dark-mode .sidebar-header {
+      background: #020617;
+      border-bottom: 1px solid #1e293b;
+    }
+
     .sidebar-header h2 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; font-weight: 700; color: var(--text-main); }
     .sidebar-header p { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 
     .sidebar-content { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
     
+    .dark-mode .sidebar-content {
+      background: #020617;
+    }
+
+    .dark-mode .sidebar-content::-webkit-scrollbar-track {
+      background: #020617;
+    }
+
     .card {
-      background: #fff; border: 1px solid rgba(226, 232, 240, 0.8);
+      background: var(--chat-bg); border: 1px solid rgba(226, 232, 240, 0.8);
       border-radius: 20px; padding: 20px; box-shadow: var(--shadow-sm);
       transition: transform 0.2s ease;
     }
@@ -261,10 +417,13 @@
     /* ---- Tab Switcher ---- */
     .tab-bar {
       display: flex; gap: 4px;
-      background: rgba(241,245,249,0.8);
+      background: var(--bg);
       border-radius: 10px;
       padding: 4px;
       margin-top: 12px;
+    }
+    .dark-mode .tab-bar {
+      background: #020617;
     }
     .tab-btn {
       flex: 1; padding: 7px 10px;
@@ -278,10 +437,16 @@
       text-transform: uppercase;
     }
     .tab-btn.active {
-      background: #fff;
+      background: var(--chat-bg);
       color: var(--primary);
       box-shadow: 0 1px 4px rgba(0,0,0,0.08);
     }
+
+    .dark-mode .tab-btn.active {
+      background: #1e293b;
+      color: #14b8a6;
+    }
+
     .tab-panel { display: none; }
     .tab-panel.active { display: flex; flex-direction: column; flex: 1; }
 
@@ -380,6 +545,7 @@
     @media (max-width: 1024px) {
       #sidebar { display: none; }
       #root { width: 100vw; height: 100vh; border-radius: 0; }
+      .gutter { display: none !important; }
     }
   </style>
 </head>
@@ -401,9 +567,15 @@
         </div>
       </div>
       <div style="display: flex; align-items: center; gap: 12px;">
-        <button id="new-chat-btn" style="background: rgba(15, 118, 110, 0.1); color: var(--primary); border: 1px solid rgba(15, 118, 110, 0.2); padding: 8px 14px; border-radius: 10px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
-          NEW CHAT
-        </button>
+      <!-- 🌙 Theme Toggle -->
+      <button id="theme-toggle" style="background: #e2e8f0; border: none; padding: 8px 12px; border-radius: 10px; cursor: pointer;">
+        🌙
+      </button>
+
+      <!-- New Chat Button -->
+      <button id="new-chat-btn" style="background: rgba(15, 118, 110, 0.1); color: var(--primary); border: 1px solid rgba(15, 118, 110, 0.2); padding: 8px 14px; border-radius: 10px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+        NEW CHAT
+      </button>
         <div class="status-indicator">
           <div class="status-dot"></div>
           <span>Live Analysis</span>
@@ -532,6 +704,9 @@
     document.getElementById('panel-graph').classList.toggle('active', tab === 'graph');
     document.getElementById('tab-diag').classList.toggle('active', tab === 'diag');
     document.getElementById('tab-graph').classList.toggle('active', tab === 'graph');
+    if (tab === 'graph') {
+      scheduleGraphRerender(30);
+    }
   }
 
   // ============================================================
@@ -545,10 +720,26 @@
     svg: null,
     gRoot: null,
     linkEls: null,
+    dynamicLinkEls: null,
     nodeEls: null,
     labelEls: null,
     simulation: null,
-    initialized: false
+    initialized: false,
+    resizeTimer: null,
+    width: 0,
+    height: 0
+  };
+
+  const GRAPH_STATE = {
+    symptoms: [],
+    conditions: [],
+    journeyEdges: []
+  };
+
+  const LAYOUT = {
+    split: null,
+    resizeObserver: null,
+    viewportResizeTimer: null
   };
 
   const THEME = {
@@ -567,18 +758,70 @@
       const data = await res.json();
       GRAPH.nodes = data.nodes;
       GRAPH.edges = data.edges;
+      GRAPH.nodeMap = {};
       GRAPH.nodes.forEach(n => GRAPH.nodeMap[n.id] = n);
-      initD3Graph();
       GRAPH.initialized = true;
+      initD3Graph();
     } catch (e) {
       console.error("Failed to load full graph", e);
     }
+  }
+
+  function rememberGraphState(symptoms = [], conditions = [], journeyEdges = []) {
+    GRAPH_STATE.symptoms = [...(symptoms || [])];
+    GRAPH_STATE.conditions = [...(conditions || [])];
+    GRAPH_STATE.journeyEdges = [...(journeyEdges || [])];
+  }
+
+  function hasGraphState() {
+    return GRAPH_STATE.symptoms.length > 0 ||
+      GRAPH_STATE.conditions.length > 0 ||
+      GRAPH_STATE.journeyEdges.length > 0;
+  }
+
+  function resetGraphView() {
+    if (!GRAPH.initialized || !GRAPH.gRoot) return;
+
+    const hint = document.getElementById('graph-empty-hint');
+    if (hint) hint.style.display = '';
+
+    GRAPH.dynamicLinkEls = GRAPH.gRoot.select('.dyn-edges')
+      .selectAll('line')
+      .data([])
+      .join('line');
+
+    GRAPH.nodeEls
+      .interrupt()
+      .attr('fill', THEME.dimmedNode)
+      .attr('r', d => d.type === 'condition' ? 7 : 5);
+
+    GRAPH.labelEls
+      .interrupt()
+      .attr('fill', '#94a3b8')
+      .attr('opacity', 0.7)
+      .attr('font-size', '8px')
+      .style('font-weight', '400');
+
+    GRAPH.linkEls
+      .interrupt()
+      .attr('stroke', THEME.dimmed)
+      .attr('stroke-width', 1)
+      .style('opacity', 0.5);
+
+    document.getElementById('graph-stats').textContent = 'Traversal Graph — awaiting input';
   }
 
   function initD3Graph() {
     const panel = document.getElementById('graph-panel');
     const W = panel.clientWidth || 560;
     const H = panel.clientHeight || 600;
+
+    if (GRAPH.simulation) {
+      GRAPH.simulation.stop();
+    }
+
+    GRAPH.width = W;
+    GRAPH.height = H;
 
     const existing = document.getElementById('graph-svg');
     if (existing) existing.innerHTML = '';
@@ -592,6 +835,20 @@
 
 
     GRAPH.svg = svg;
+
+    const defs = svg.append('defs');
+    defs.append('marker')
+      .attr('id', 'timeline-arrow')
+      .attr('viewBox', '0 0 10 10')
+      .attr('refX', 8)
+      .attr('refY', 5)
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .attr('orient', 'auto-start-reverse')
+      .append('path')
+      .attr('d', 'M 0 0 L 10 5 L 0 10 z')
+      .attr('fill', '#fb923c');
+
     const g = svg.append('g').attr('class', 'graph-root');
     GRAPH.gRoot = g;
 
@@ -688,6 +945,12 @@
           ev.subject.fy = null;
         });
     }
+
+    if (hasGraphState()) {
+      highlightGraph(GRAPH_STATE.symptoms, GRAPH_STATE.conditions, GRAPH_STATE.journeyEdges);
+    } else {
+      resetGraphView();
+    }
   }
 
   function normalizeGraphId(text) {
@@ -731,7 +994,16 @@
   }
 
   function highlightGraph(symptoms, conditions, journeyEdges) {
+    rememberGraphState(symptoms, conditions, journeyEdges);
+
     if (!GRAPH.initialized) return;
+
+    if ((!symptoms || symptoms.length === 0) &&
+        (!conditions || conditions.length === 0) &&
+        (!journeyEdges || journeyEdges.length === 0)) {
+      resetGraphView();
+      return;
+    }
 
     const hint = document.getElementById('graph-empty-hint');
     if (hint) hint.style.display = 'none';
@@ -818,6 +1090,104 @@
       `Structured Global Graph · ${hlNodes} active nodes · ${dynamicEdges.length} active connections`;
   }
 
+  function scheduleGraphRerender(delay = 120) {
+    if (!GRAPH.initialized) return;
+
+    window.clearTimeout(GRAPH.resizeTimer);
+    GRAPH.resizeTimer = window.setTimeout(() => {
+      const panel = document.getElementById('graph-panel');
+      if (!panel) return;
+
+      const nextWidth = panel.clientWidth || 0;
+      const nextHeight = panel.clientHeight || 0;
+      if (!nextWidth || !nextHeight) return;
+
+      const widthChanged = Math.abs(nextWidth - GRAPH.width) > 2;
+      const heightChanged = Math.abs(nextHeight - GRAPH.height) > 2;
+      if (!widthChanged && !heightChanged) return;
+
+      initD3Graph();
+    }, delay);
+  }
+
+  function getMinPaneWidth() {
+    return Math.max(Math.floor(window.innerWidth * 0.25), 260);
+  }
+
+  function destroySplitLayout() {
+    if (LAYOUT.split) {
+      LAYOUT.split.destroy();
+      LAYOUT.split = null;
+    }
+
+    document.getElementById('chat-section')?.style.removeProperty('width');
+    document.getElementById('chat-section')?.style.removeProperty('flex-basis');
+    document.getElementById('sidebar')?.style.removeProperty('width');
+    document.getElementById('sidebar')?.style.removeProperty('flex-basis');
+    document.body.classList.remove('is-resizing');
+  }
+
+  function initSplitLayout() {
+    const isDesktop = window.innerWidth > 1024;
+
+    if (!isDesktop) {
+      destroySplitLayout();
+      return;
+    }
+
+    if (typeof Split !== 'function') {
+      console.warn('Split.js failed to load; resizable layout unavailable.');
+      return;
+    }
+
+    const sizes = LAYOUT.split && typeof LAYOUT.split.getSizes === 'function'
+      ? LAYOUT.split.getSizes()
+      : [72, 28];
+
+    destroySplitLayout();
+
+    LAYOUT.split = Split(['#chat-section', '#sidebar'], {
+      sizes,
+      minSize: [getMinPaneWidth(), getMinPaneWidth()],
+      gutterSize: 14,
+      cursor: 'col-resize',
+      direction: 'horizontal',
+      onDragStart: () => {
+        document.body.classList.add('is-resizing');
+      },
+      onDrag: () => {
+        scheduleGraphRerender(80);
+      },
+      onDragEnd: () => {
+        document.body.classList.remove('is-resizing');
+        scheduleGraphRerender(40);
+      }
+    });
+  }
+
+  function initGraphResizeObserver() {
+    const panel = document.getElementById('graph-panel');
+    if (!panel || typeof ResizeObserver !== 'function') return;
+
+    if (LAYOUT.resizeObserver) {
+      LAYOUT.resizeObserver.disconnect();
+    }
+
+    LAYOUT.resizeObserver = new ResizeObserver(() => {
+      scheduleGraphRerender();
+    });
+
+    LAYOUT.resizeObserver.observe(panel);
+  }
+
+  function handleViewportResize() {
+    window.clearTimeout(LAYOUT.viewportResizeTimer);
+    LAYOUT.viewportResizeTimer = window.setTimeout(() => {
+      initSplitLayout();
+      scheduleGraphRerender();
+    }, 140);
+  }
+
 
 
 
@@ -831,6 +1201,7 @@
   }
   let history = [];
   let allSymptoms = [];
+  let sessionId = null;   // server-assigned session ID
   let isLoading = false;
   let sessionId = generateSessionId();
 
@@ -862,7 +1233,12 @@
     
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
-    bubble.textContent = text;
+
+    if (role === 'bot') {
+      bubble.innerHTML = DOMPurify.sanitize(marked.parse(text));
+    } else {
+      bubble.textContent = text;
+    }
     
     content.appendChild(bubble);
     msgDiv.appendChild(avatar);
@@ -896,10 +1272,19 @@
   }
 
   function clearChat() {
+    // Tell the server to drop the session so symptom history is wiped
+    if (sessionId) {
+      fetch('/session/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId })
+      });
+    }
+    sessionId = null;
     chatArea.innerHTML = '';
     history = [];
     allSymptoms = [];
-    sessionId = generateSessionId();
+    rememberGraphState([], [], []);
     updateDashboard({
       extracted_symptoms: [],
       top_conditions: [],
@@ -907,6 +1292,7 @@
       graph_followups: [],
       red_flags_detected: []
     });
+    resetGraphView();
     addMessage('bot', "Session reset. How can I help you today?");
   }
 
@@ -963,7 +1349,7 @@
     const travList = document.getElementById('trav-list');
     const path = data.traversal_path || [];
     if (path.length > 0) {
-      const shown = path.slice(0, 12);  // show first 12 steps
+      const shown = path.slice(0, 12);
       travList.innerHTML =
         `<div class="traversal-header">Visited ${path.length} edges · showing first ${shown.length}</div>` +
         shown.map((step, i) => `
@@ -1007,8 +1393,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: history,
-          extracted_symptoms: allSymptoms,
-          session_id: sessionId,
+          session_id: sessionId,   // server echoes this back; null on first turn
         })
       });
 
@@ -1016,13 +1401,13 @@
       const data = await res.json();
 
       removeTyping();
+      // Server now owns the symptom timeline; we just store the session_id
+      sessionId = data.session_id;
       allSymptoms = data.symptom_timeline || data.extracted_symptoms || [];
       history.push({ role: 'assistant', content: data.reply });
       addMessage('bot', data.reply);
-      // Attach traversal path to data for dashboard rendering
       data.traversal_path = data.top_conditions?.[0]?.traversal_path || [];
       updateDashboard(data);
-      // Update graph highlighting with backend-provided journey edges.
       highlightGraph(
         data.symptom_timeline || data.extracted_symptoms || [],
         data.top_conditions,
@@ -1042,9 +1427,34 @@
 
   // Init
   window.onload = () => {
+    initSplitLayout();
+    initGraphResizeObserver();
+    window.addEventListener('resize', handleViewportResize);
     loadFullGraph();
     addMessage('bot', "Welcome to SymptomAssist AI. Describe your symptoms in detail — the medical knowledge graph (built from 41 conditions and 130+ symptoms from a real dataset) will be traversed using BFS to identify likely conditions.\n\nHow are you feeling today?");
   }
 </script>
 </body>
+<script>
+  const toggleBtn = document.getElementById("theme-toggle");
+
+  // Load saved theme
+  if (localStorage.getItem("theme") === "dark") {
+    document.body.classList.add("dark-mode");
+    toggleBtn.textContent = "☀️";
+  }
+
+  toggleBtn.addEventListener("click", () => {
+    document.body.classList.toggle("dark-mode");
+
+    if (document.body.classList.contains("dark-mode")) {
+      localStorage.setItem("theme", "dark");
+      toggleBtn.textContent = "☀️";
+    } else {
+      localStorage.setItem("theme", "light");
+      toggleBtn.textContent = "🌙";
+    }
+  });
+</script>
+
 </html>
