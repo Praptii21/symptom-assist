@@ -314,9 +314,17 @@ async def chat(request: ChatRequest):
 
         # --- Step 1: NLP extraction ---
         extraction = NLP.extract(latest_user_msg)
+
+        # 🚨 Handle mixed valid + invalid input (from main)
+        noise_message = ""
+        if extraction.symptoms and getattr(extraction, 'noise', None):
+            noise_message = f"I understood {', '.join(extraction.symptoms)}, but some parts of your input were unclear."
+        elif not extraction.symptoms:
+            noise_message = "I couldn't identify any valid symptoms. Please describe your symptoms clearly."
+
+        # Temporal Context Logic (from feature branch)
         all_symptoms_data = merge_symptom_timeline(prior_symptoms, extraction.symptoms)
 
-        # Update with explicit temporal context if provided by user in this request
         if request.temporal_context:
             for ctx in request.temporal_context:
                 ctx_name = ctx.name.lower().strip()
@@ -346,7 +354,7 @@ async def chat(request: ChatRequest):
             top_condition = candidates[0]["condition_id"]
             followup_questions = get_followup_questions(GRAPH, top_condition)
 
-        journey_edges = build_journey_edges(all_symptoms, candidates)
+        journey_edges = build_journey_edges(all_symptoms_data, candidates)
 
         # --- Step 4: RAG retrieval ---
         rag_context = RAG.retrieve_context(latest_user_msg, top_k=2)
@@ -373,6 +381,8 @@ async def chat(request: ChatRequest):
 
         try:
             reply = call_groq_api(messages)
+            if noise_message:
+                reply = noise_message + "\n\n" + reply
         except Exception as e:
             # Log full error for debugging
             APIErrorHandler.log_error(e, "Groq API call failed in /chat endpoint")
