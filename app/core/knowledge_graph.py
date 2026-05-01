@@ -79,13 +79,16 @@ def load_graph_from_csv(csv_path: str) -> nx.DiGraph:
             red_flags = [rf.strip() for rf in red_flag_str.split("|") if rf.strip()]
             # ─────────────────────────────────────────────────────────────
 
-            # Collect symptoms (symptom_1 … symptom_17, skip empties and leaked severity)
-            symptoms = []
+            # Collect symptoms (symptom_1 … symptom_17) with their order index
+            symptoms_with_indices = []
             for i in range(1, 18):
                 key = f"symptom_{i}"
                 val = (row.get(key) or "").strip()
                 if val and val.lower() not in _VALID_SEV:
-                    symptoms.append(val.lower())
+                    symptoms_with_indices.append({
+                        "name": val.lower(),
+                        "index": i
+                    })
                     symptom_condition_count[val.lower()] += 1
 
             rows.append({
@@ -94,7 +97,7 @@ def load_graph_from_csv(csv_path: str) -> nx.DiGraph:
                 "description":  description,
                 "severity":     severity,
                 "red_flags":    red_flags,
-                "symptoms":     symptoms,
+                "symptoms":     symptoms_with_indices,
             })
 
     # ----- Build graph -----
@@ -116,7 +119,9 @@ def load_graph_from_csv(csv_path: str) -> nx.DiGraph:
         primary    = data["symptoms"][:primary_count]
         confirming = data["symptoms"][primary_count:]
 
-        for symptom in primary:
+        for item in primary:
+            symptom = item["name"]
+            index   = item["index"]
             if not G.has_node(symptom):
                 G.add_node(symptom, node_type="symptom")
             # Rarer symptom → higher diagnostic weight
@@ -124,14 +129,18 @@ def load_graph_from_csv(csv_path: str) -> nx.DiGraph:
             weight = round(1.0 / freq, 4)
             G.add_edge(symptom, condition_id,
                        edge_type="SUGGESTS",
-                       weight=weight)
+                       weight=weight,
+                       onset_index=index) # Added temporal metadata
 
-        for symptom in confirming:
+        for item in confirming:
+            symptom = item["name"]
+            index   = item["index"]
             if not G.has_node(symptom):
                 G.add_node(symptom, node_type="symptom")
             G.add_edge(condition_id, symptom,
                        edge_type="CONFIRMED_BY",
-                       weight=0.9)
+                       weight=0.9,
+                       onset_index=index)
 
     # Normalise SUGGESTS weights to [0.3, 1.0]
     suggests_weights = [
@@ -159,48 +168,47 @@ def load_graph_from_csv(csv_path: str) -> nx.DiGraph:
 # 2. Graph Traversal — BFS from symptom nodes to condition nodes
 # ---------------------------------------------------------------------------
 
-def traverse_graph(G: nx.DiGraph, symptoms: list[str]) -> list[dict]:
+def traverse_graph(G: nx.DiGraph, symptoms: list) -> list[dict]:
     """
     BFS traversal starting from every matched symptom node.
+    Incorporates temporal context (onset order) into scoring.
 
-    Algorithm:
-      1. For each user symptom, find matching graph symptom nodes
-         (exact match or substring).
-      2. Enqueue those symptom nodes.
-      3. BFS: dequeue a node → visit all outgoing SUGGESTS edges
-         → add weight to the target condition's accumulated score.
-      4. Track visited nodes to avoid double-counting.
-      5. Return conditions ranked by accumulated score, normalised to [0,1].
-
-    Returns a list of dicts with keys:
-      condition_id, display, description, severity, score, red_flags,
-      traversal_path  (ordered list of symptom → condition steps taken)
+    symptoms can be:
+      - list[str]: old format (just names)
+      - list[dict]: new format [{"name": "cough", "onset_order": 1}, ...]
     """
     if not symptoms:
         return []
+
+    # Normalise input to dicts
+    processed_symptoms = []
+    for s in symptoms:
+        if isinstance(s, str):
+            processed_symptoms.append({"name": s, "onset_order": None})
+        else:
+            processed_symptoms.append(s)
 
     # -- Step 1: Match user symptoms to graph symptom nodes --
     matched_nodes: list[str] = []
     matched_set: set[str] = set()   # tracks already-added nodes for O(1) dedup
     unmatched: list[str] = []
 
-    for user_sym in symptoms:
-        u = user_sym.lower().strip()
+    for sym_obj in processed_symptoms:
+        u = sym_obj["name"].lower().strip()
         # Exact match
         if u in G and G.nodes[u].get("node_type") == "symptom":
             if u not in matched_set:
-                matched_nodes.append(u)
+                matched_nodes.append((u, sym_obj.get("onset_order")))
                 matched_set.add(u)
             continue
-        # Substring match — iterate every node to collect ALL matches,
-        # not just the first one.
+        # Substring match
         found = False
         for node in G.nodes:
             if G.nodes[node].get("node_type") == "symptom":
                 if u in node or node in u:
                     found = True
-                    if node not in matched_set:   # dedup check before append
-                        matched_nodes.append(node)
+                    if node not in matched_set:
+                        matched_nodes.append((node, sym_obj.get("onset_order")))
                         matched_set.add(node)
         if not found:
             unmatched.append(u)
@@ -216,13 +224,19 @@ def traverse_graph(G: nx.DiGraph, symptoms: list[str]) -> list[dict]:
     traversal_path: list[dict] = []       # records each step taken
     visited: set[str] = set()
 
-    queue: deque[str] = deque(matched_nodes)
-    for n in matched_nodes:
+    # Create a lookup for patient onset order
+    patient_onset = {node: order for node, order in matched_nodes if order is not None}
+    
+    # Enqueue nodes for BFS
+    queue: deque[str] = deque([node for node, _ in matched_nodes])
+    for n, _ in matched_nodes:
         visited.add(n)
 
     while queue:
         current = queue.popleft()
-        current_type = G.nodes[current].get("node_type", "")
+        
+        # Determine current symptom's reported order (if any)
+        current_patient_order = patient_onset.get(current)
 
         for _, neighbour, edge_data in G.out_edges(current, data=True):
             if edge_data.get("edge_type") != "SUGGESTS":
@@ -232,15 +246,35 @@ def traverse_graph(G: nx.DiGraph, symptoms: list[str]) -> list[dict]:
             visited.add(neighbour)
 
             weight = edge_data.get("weight", 1.0)
-            condition_scores[neighbour] += weight
+            
+            # --- TEMPORAL WEIGHTING LOGIC ---
+            # If both have order info, compare them.
+            # We look for other symptoms already 'processed' for this condition
+            # or we just check if this symptom's order matches the condition's textbook order.
+            
+            textbook_order = edge_data.get("onset_index", 99)
+            
+            # Simple heuristic: if patient_order matches textbook_order (relative rank),
+            # give a small multiplier.
+            temporal_multiplier = 1.0
+            if current_patient_order is not None:
+                # If it's the 1st symptom in both, or both are 'early', etc.
+                if current_patient_order == textbook_order:
+                    temporal_multiplier = 1.25  # Strong match
+                elif abs(current_patient_order - textbook_order) <= 1:
+                    temporal_multiplier = 1.1   # Close match
+            
+            final_weight = weight * temporal_multiplier
+            condition_scores[neighbour] += final_weight
 
             traversal_path.append({
                 "from": current,
                 "to":   neighbour,
-                "weight": weight,
+                "weight": final_weight,
+                "temporal_match": temporal_multiplier > 1.0
             })
 
-            # Enqueue for further traversal (in case of multi-hop graphs)
+            # Enqueue for further traversal
             queue.append(neighbour)
 
     if not condition_scores:
