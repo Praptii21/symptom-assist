@@ -26,7 +26,7 @@ except ImportError:  # pragma: no cover
     _FUZZY_AVAILABLE = False
 
 # Minimum similarity score (0-100) to accept a fuzzy match
-FUZZY_THRESHOLD = 85
+FUZZY_THRESHOLD = 92
 
 
 # ---------------------------------------------------------------------------
@@ -443,15 +443,19 @@ class SymptomExtractor:
             if word not in STOPWORDS
         )
 
+        cleaned_symptoms = []
+
         for symptom in found_symptoms:
             symptom_words = set(symptom.split())
-            if symptom_words & input_words:  # at least one meaningful overlap
+
+    # allow fuzzy overlap OR phrase match OR manual mapping
+            if symptom_words & input_words or len(symptom_words) == 1:
                 cleaned_symptoms.append(symptom)
                 
-        original_words = set(re.findall(r"[a-zA-ZS']+", text_lower))
+        original_words = set(re.findall(r"[a-z']+", text_lower))
         matched_words = set()
-        for symptom in found_symptoms:
-            matched_words.update(symptom.split())
+        for phrase in raw_mentions:
+            matched_words.update(phrase.lower().split())
 
         noise_words = [
             word for word in (original_words-matched_words)
