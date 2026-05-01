@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "C:\Users\Harshitha Reddy\OneDrive\Desktop\Sympton assist\symptom-assist\app\main.py", line 354, in chat
+    top_conditions.append({
+    ^^^^^^^^^^^^^^
+NameError: name 'top_conditions' is not defined. Did you mean: 'top_condition'?

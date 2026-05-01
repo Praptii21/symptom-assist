@@ -303,6 +303,7 @@ def build_journey_edges(symptom_timeline: List[dict], candidates: List[dict]) ->
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     try:
+        session_id, prior_symptoms = _get_or_create_session(request.session_id)
         if not request.messages:
             raise HTTPException(status_code=400, detail="No messages provided")
 
@@ -321,7 +322,6 @@ async def chat(request: ChatRequest):
             noise_message = f"I understood {', '.join(extraction.symptoms)}, but some parts of your input were unclear."
         elif not extraction.symptoms:
             noise_message = "I couldn't identify any valid symptoms. Please describe your symptoms clearly."
-
         # Temporal Context Logic (from feature branch)
         all_symptoms_data = merge_symptom_timeline(prior_symptoms, extraction.symptoms)
 
@@ -349,10 +349,24 @@ async def chat(request: ChatRequest):
         # --- Step 3: BFS graph traversal ---
         candidates = traverse_graph(GRAPH, all_symptoms_data)
         followup_questions = []
-        top_condition = None
-        if candidates:
-            top_condition = candidates[0]["condition_id"]
-            followup_questions = get_followup_questions(GRAPH, top_condition)
+        top_condition = [
+            {
+                "display": c["display"],
+                "score": c["score"],
+                "severity": c["severity"],
+                "condition_id": c["condition_id"],
+                "traversal_path": c.get("traversal_path", []),
+
+                # 🔥 ADD THESE (your XAI fields)
+                "confidence": c.get("confidence"),
+                "match_ratio": c.get("match_ratio"),
+                "matched_symptoms": c.get("matched_symptoms"),
+                "contribution": c.get("contribution"),
+            }
+            for c in candidates[:3]
+        ]
+        top_condition_id = candidates[0]["condition_id"] if candidates else None
+        followup_questions = get_followup_questions(GRAPH, top_condition_id) if top_condition_id else []
 
         journey_edges = build_journey_edges(all_symptoms_data, candidates)
 
@@ -395,16 +409,7 @@ async def chat(request: ChatRequest):
             extracted_symptoms=all_symptom_names,
             symptom_timeline=all_symptom_names,
             temporal_context=[SymptomDetail(**s) for s in all_symptoms_data],
-            top_conditions=[
-                {
-                    "display":       c["display"],
-                    "score":         c["score"],
-                    "severity":      c["severity"],
-                    "condition_id":  c["condition_id"],
-                    "traversal_path": c.get("traversal_path", []),
-                }
-                for c in candidates[:3]
-            ],
+            top_conditions=top_condition,
             rag_sources=rag_sources,
             graph_followups=followup_questions[:4],
             red_flags_detected=red_flags,
