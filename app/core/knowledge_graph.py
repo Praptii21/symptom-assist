@@ -221,6 +221,8 @@ def traverse_graph(G: nx.DiGraph, symptoms: list) -> list[dict]:
 
     # -- Step 2 & 3: BFS traversal --
     condition_scores: dict[str, float] = defaultdict(float)
+    # NEW: Track contribution of each symptom per condition
+    symptom_contribution: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     traversal_path: list[dict] = []       # records each step taken
     visited: set[str] = set()
 
@@ -266,6 +268,7 @@ def traverse_graph(G: nx.DiGraph, symptoms: list) -> list[dict]:
             
             final_weight = weight * temporal_multiplier
             condition_scores[neighbour] += final_weight
+            symptom_contribution[neighbour][current] += weight
 
             traversal_path.append({
                 "from": current,
@@ -285,6 +288,24 @@ def traverse_graph(G: nx.DiGraph, symptoms: list) -> list[dict]:
     results = []
     for condition_id, score in sorted(condition_scores.items(), key=lambda x: -x[1]):
         node = G.nodes[condition_id]
+        matched_symptoms = list(symptom_contribution[condition_id].keys())
+        match_count = len(matched_symptoms)
+
+        # total possible symptoms for this condition
+        total_symptoms = len([
+            s for s in G.nodes
+            if G.nodes[s].get("node_type") == "symptom" and G.has_edge(s, condition_id)
+        ])
+
+        # avoid division by zero
+        ratio = match_count / total_symptoms if total_symptoms else 0
+
+        # confidence level
+        confidence = "low"
+        if ratio > 0.6:
+            confidence = "high"
+        elif ratio > 0.3:
+            confidence = "medium"
         results.append({
             "condition_id":   condition_id,
             "display":        node.get("display", condition_id),
@@ -294,6 +315,11 @@ def traverse_graph(G: nx.DiGraph, symptoms: list) -> list[dict]:
             "raw_score":      round(score, 4),
             "red_flags":      node.get("red_flags", []),
             "traversal_path": traversal_path,
+            "contribution": dict(symptom_contribution[condition_id]),
+            "matched_symptoms": matched_symptoms,
+            "total_symptoms": total_symptoms,
+            "match_ratio": f"{match_count}/{total_symptoms}",
+            "confidence": confidence,
         })
 
     return results[:7]   # top 7 candidates
