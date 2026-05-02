@@ -163,11 +163,12 @@ class GraphData(BaseModel):
 # ---------------------------------------------------------------------------
 
 def build_system_prompt(
-    extracted_symptoms: list,
-    candidate_conditions: list,
-    rag_context: str,
-    followup_questions: list,
-    red_flags: list,
+    extracted_symptoms,
+    candidate_conditions,
+    rag_context,
+    followup_questions,
+    red_flags,
+    has_noise=False,
 ) -> str:
 
     base = """You are SymptomAssist, a compassionate AI health assistant.
@@ -186,13 +187,22 @@ ASSESSMENT FORMAT:
 - If red flags are present, start with: "URGENT: [reason] — please seek emergency care immediately."
 
 RULES:
+- Never contradict yourself in the same response
+- Do not say you are unsure if valid symptoms are already identified
 - Be warm, clear, and concise (2-4 sentences per turn)
 - Use "this may suggest" or "this sounds like it could be" — never claim to diagnose
 - Ask only ONE follow-up question at a time
 - Never recommend prescription drugs by name
 - Ground your response in the retrieved medical context below
+- Avoid repeating the same conclusion twice
+- Do not restate the same condition multiple times
+- Speak naturally like a doctor, not like a report
+- If the user's input is unclear, interpret it intelligently instead of rejecting it
+- Combine insights into one smooth explanation
 """
-
+    if has_noise:
+        base += "\nNOTE: The user's input may contain unclear or extra information. Focus on the valid symptoms and guide gently.\n"
+        
     if red_flags:
         base += f"\n⚠️ RED FLAG SYMPTOMS DETECTED: {', '.join(red_flags)}\nIf these are present, immediately advise emergency care regardless of other context.\n"
 
@@ -316,14 +326,19 @@ async def chat(request: ChatRequest):
         # --- Step 1: NLP extraction ---
         extraction = NLP.extract(latest_user_msg)
 
-        # 🚨 Handle mixed valid + invalid input (from main)
-        noise_message = ""
-        if extraction.symptoms and getattr(extraction, 'noise', None):
-            noise_message = f"I understood {', '.join(extraction.symptoms)}, but some parts of your input were unclear."
-        elif not extraction.symptoms:
-            noise_message = "I couldn't identify any valid symptoms. Please describe your symptoms clearly."
-        # Temporal Context Logic (from feature branch)
-        all_symptoms_data = merge_symptom_timeline(prior_symptoms, extraction.symptoms)
+      
+       # 🚨 Handle mixed valid + invalid input (from main)
+noise_message = ""
+
+if not extraction.symptoms:
+    noise_message = "I couldn't identify any valid symptoms. Please describe your symptoms clearly."
+
+elif getattr(extraction, 'noise', None):
+    noise_message = f"I understood {', '.join(extraction.symptoms)}, but some parts of your input were unclear."
+
+# ✅ Always run if symptoms exist
+if extraction.symptoms:
+    all_symptoms_data = merge_symptom_timeline(prior_symptoms, extraction.symptoms)
 
         if request.temporal_context:
             for ctx in request.temporal_context:
@@ -344,7 +359,7 @@ async def chat(request: ChatRequest):
         all_symptom_names = [s["name"] for s in all_symptoms_data]
 
         # --- Step 2: Red flag check ---
-        red_flags = check_red_flags(GRAPH, all_symptom_names)
+        red_flags = check_red_flags(GRAPH, all_symptoms )
 
         # --- Step 3: BFS graph traversal ---
         candidates = traverse_graph(GRAPH, all_symptoms_data)
@@ -379,12 +394,13 @@ async def chat(request: ChatRequest):
 
         # --- Step 5: Build enriched system prompt ---
         system_prompt = build_system_prompt(
-            extracted_symptoms=all_symptom_names,
-            candidate_conditions=candidates,
-            rag_context=rag_context,
-            followup_questions=followup_questions,
-            red_flags=red_flags,
-        )
+    extracted_symptoms=all_symptoms,
+    candidate_conditions=candidates,
+    rag_context=rag_context,
+    followup_questions=followup_questions,
+    red_flags=red_flags,
+    has_noise=bool(extraction.noise),
+)
 
         # --- Step 6: Call Groq with full context ---
         # Map roles to Groq roles ("user" -> "user", "model" -> "assistant")
@@ -396,7 +412,7 @@ async def chat(request: ChatRequest):
         try:
             reply = call_groq_api(messages)
             if noise_message:
-                reply = noise_message + "\n\n" + reply
+                reply = f"{noise_message}\n\n{reply}"
         except Exception as e:
             # Log full error for debugging
             APIErrorHandler.log_error(e, "Groq API call failed in /chat endpoint")
