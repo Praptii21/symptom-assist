@@ -94,6 +94,10 @@ Retrieved medical documents are injected directly into the LLM prompt. The model
 
 The right panel shows what's happening at each stage — extracted symptom tags, traversal matches with confidence scores, and the knowledge graph lighting up live as you type.
 
+### **Visit-Ready Clinical Summary**
+
+Generate a concise, sober text report of your session to share with a healthcare professional. It includes a chronological symptom timeline, potential matches from the knowledge graph (clearly framed as non-diagnostic), and any detected red flags. This closes the gap between an AI chat and a productive doctor's visit.
+
 ---
 
 ## ⚙️ Why This Architecture
