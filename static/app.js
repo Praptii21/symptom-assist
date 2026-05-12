@@ -18,6 +18,209 @@
           scheduleGraphRerender(30);
         }
       }
+      
+      // ============================================================
+      // REUSABLE UI COMPONENTS (SA_UI)
+      // ============================================================
+      const SA_UI = {
+        /**
+         * Create a standard text input group
+         */
+        createInput: function(container, options = {}) {
+          const { label, placeholder, id, value = "", onInput } = options;
+          const group = document.createElement("div");
+          group.className = "sa-input-group";
+          
+          if (label) {
+            const lbl = document.createElement("label");
+            lbl.className = "sa-label";
+            lbl.textContent = label;
+            lbl.setAttribute("for", id);
+            group.appendChild(lbl);
+          }
+          
+          const input = document.createElement("input");
+          input.className = "sa-input";
+          input.type = "text";
+          input.placeholder = placeholder || "";
+          input.id = id;
+          input.value = value;
+          
+          if (onInput) input.addEventListener("input", (e) => onInput(e.target.value));
+          
+          group.appendChild(input);
+          container.appendChild(group);
+          return input;
+        },
+
+        /**
+         * Create a custom dropdown select
+         */
+        createSelect: function(container, options = {}) {
+          const { label, id, items = [], onChange } = options;
+          const group = document.createElement("div");
+          group.className = "sa-input-group";
+          
+          if (label) {
+            const lbl = document.createElement("label");
+            lbl.className = "sa-label";
+            lbl.textContent = label;
+            lbl.setAttribute("for", id);
+            group.appendChild(lbl);
+          }
+          
+          const wrapper = document.createElement("div");
+          wrapper.className = "sa-select-wrapper";
+          
+          const select = document.createElement("select");
+          select.className = "sa-select";
+          select.id = id;
+          
+          items.forEach(item => {
+            const opt = document.createElement("option");
+            opt.value = typeof item === 'string' ? item : item.value;
+            opt.textContent = typeof item === 'string' ? item : item.label;
+            select.appendChild(opt);
+          });
+          
+          if (onChange) select.addEventListener("change", (e) => onChange(e.target.value));
+          
+          wrapper.appendChild(select);
+          group.appendChild(wrapper);
+          container.appendChild(group);
+          return select;
+        },
+
+        /**
+         * Create a multi-select symptom picker
+         */
+        createSymptomPicker: function(container, options = {}) {
+          const { label, id, placeholder = "Search symptoms...", onSelectionChange } = options;
+          const selectedSymptoms = new Set();
+          
+          const group = document.createElement("div");
+          group.className = "sa-input-group";
+          
+          if (label) {
+            const lbl = document.createElement("label");
+            lbl.className = "sa-label";
+            lbl.textContent = label;
+            group.appendChild(lbl);
+          }
+          
+          const wrapper = document.createElement("div");
+          wrapper.style.position = "relative";
+          
+          const picker = document.createElement("div");
+          picker.className = "sa-multi-select";
+          picker.id = id;
+          
+          const input = document.createElement("input");
+          input.className = "sa-multi-select__input";
+          input.placeholder = placeholder;
+          
+          const dropdown = document.createElement("div");
+          dropdown.className = "sa-dropdown";
+          
+          const updateTags = () => {
+            // Remove existing tags
+            picker.querySelectorAll(".sa-multi-select__tag").forEach(t => t.remove());
+            
+            // Add new tags
+            selectedSymptoms.forEach(symp => {
+              const tag = document.createElement("div");
+              tag.className = "sa-multi-select__tag";
+              tag.innerHTML = `
+                ${symp.replace(/_/g, ' ')}
+                <span class="sa-multi-select__tag-remove" data-symp="${symp}">&times;</span>
+              `;
+              tag.querySelector(".sa-multi-select__tag-remove").onclick = (e) => {
+                e.stopPropagation();
+                selectedSymptoms.delete(symp);
+                updateTags();
+                if (onSelectionChange) onSelectionChange(Array.from(selectedSymptoms));
+              };
+              picker.insertBefore(tag, input);
+            });
+          };
+
+          const showDropdown = (filter = "") => {
+            const allSymptoms = GRAPH.nodes
+              .filter(n => n.type === "symptom")
+              .map(n => n.id)
+              .filter(id => !selectedSymptoms.has(id))
+              .filter(id => id.replace(/_/g, ' ').toLowerCase().includes(filter.toLowerCase()))
+              .sort();
+            
+            dropdown.innerHTML = "";
+            if (allSymptoms.length === 0) {
+              dropdown.classList.remove("show");
+              return;
+            }
+            
+            allSymptoms.slice(0, 10).forEach(symp => {
+              const item = document.createElement("div");
+              item.className = "sa-dropdown__item";
+              item.textContent = symp.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              item.onclick = () => {
+                selectedSymptoms.add(symp);
+                input.value = "";
+                dropdown.classList.remove("show");
+                updateTags();
+                if (onSelectionChange) onSelectionChange(Array.from(selectedSymptoms));
+              };
+              dropdown.appendChild(item);
+            });
+            dropdown.classList.add("show");
+          };
+
+          input.oninput = (e) => showDropdown(e.target.value);
+          input.onfocus = () => showDropdown(input.value);
+          
+          // Close dropdown when clicking outside
+          document.addEventListener("click", (e) => {
+            if (!wrapper.contains(e.target)) dropdown.classList.remove("show");
+          });
+
+          picker.onclick = () => input.focus();
+          
+          picker.appendChild(input);
+          wrapper.appendChild(picker);
+          wrapper.appendChild(dropdown);
+          group.appendChild(wrapper);
+          container.appendChild(group);
+          
+          return {
+            getSelected: () => Array.from(selectedSymptoms),
+            clear: () => {
+              selectedSymptoms.clear();
+              updateTags();
+            }
+          };
+        },
+
+        /**
+         * Show/Hide validation message
+         */
+        setValidation: function(element, message, type = "error") {
+          let msgEl = element.parentNode.querySelector(".sa-validation-msg");
+          if (!msgEl) {
+            msgEl = document.createElement("div");
+            msgEl.className = "sa-validation-msg";
+            element.parentNode.appendChild(msgEl);
+          }
+          
+          if (message) {
+            msgEl.textContent = message;
+            msgEl.className = `sa-validation-msg sa-validation-msg--${type} show`;
+            element.classList.toggle("sa-input--error", type === "error");
+          } else {
+            msgEl.classList.remove("show");
+            element.classList.remove("sa-input--error");
+          }
+        }
+      };
+
 
       // ============================================================
       // PRE-DEFINED FULL KNOWLEDGE GRAPH (Force Simulation)
@@ -792,7 +995,13 @@
 
       async function sendMessage() {
         const text = inputEl.value.trim();
-        if (!text || isLoading) return;
+        if (!text) {
+          SA_UI.setValidation(inputEl, "Please describe your symptoms first.");
+          return;
+        }
+        
+        SA_UI.setValidation(inputEl, null); // Clear validation
+        if (isLoading) return;
 
         inputEl.value = "";
         isLoading = true;
@@ -850,6 +1059,36 @@
         initGraphResizeObserver();
         window.addEventListener("resize", handleViewportResize);
         loadFullGraph();
+
+        // --- Manual Symptom Picker Initialization ---
+        const pickerContainer = document.getElementById("symptom-picker-container");
+        let symptomPicker = null;
+        
+        if (pickerContainer) {
+          symptomPicker = SA_UI.createSymptomPicker(pickerContainer, {
+            id: "manual-symptom-picker",
+            label: "Search & Select Symptoms",
+            onSelectionChange: (selected) => {
+              const btn = document.getElementById("add-selected-btn");
+              if (btn) btn.disabled = selected.length === 0;
+            }
+          });
+          
+          const addBtn = document.getElementById("add-selected-btn");
+          if (addBtn) {
+            addBtn.disabled = true;
+            addBtn.addEventListener("click", async () => {
+              const selected = symptomPicker.getSelected();
+              if (selected.length === 0) return;
+              
+              const combinedText = "Patient manually selected: " + selected.map(s => s.replace(/_/g, ' ')).join(", ");
+              inputEl.value = combinedText;
+              sendMessage();
+              symptomPicker.clear();
+            });
+          }
+        }
+
 
         addMessage(
           "bot",

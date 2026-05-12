@@ -1445,3 +1445,38 @@ OSError: [Errno 22] Invalid argument
 2026-05-09 22:33:50,753 - httpx - INFO - [_client.py:1025] - HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
 2026-05-09 22:33:51,474 - root - INFO - [main.py:62] - [startup] Loading NLP extractor (dynamic lexicon from CSV)...
 2026-05-09 22:33:52,025 - root - INFO - [main.py:64] - [startup] Groq client ready.
+2026-05-13 01:51:45,782 - root - INFO - [main.py:58] - [startup] Building knowledge graph from CSV...
+2026-05-13 01:51:45,807 - root - INFO - [main.py:60] - [startup] Initialising RAG pipeline from CSV...
+2026-05-13 01:54:57,380 - sentence_transformers.SentenceTransformer - INFO - [SentenceTransformer.py:219] - Use pytorch device_name: cpu
+2026-05-13 01:54:57,381 - sentence_transformers.SentenceTransformer - INFO - [SentenceTransformer.py:227] - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2026-05-13 01:55:02,747 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+2026-05-13 01:55:02,805 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/modules.json "HTTP/1.1 200 OK"
+2026-05-13 01:55:03,233 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config_sentence_transformers.json "HTTP/1.1 307 Temporary Redirect"
+2026-05-13 01:55:03,270 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config_sentence_transformers.json "HTTP/1.1 200 OK"
+2026-05-13 01:55:03,613 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config_sentence_transformers.json "HTTP/1.1 307 Temporary Redirect"
+2026-05-13 01:55:03,617 - huggingface_hub.utils._http - WARNING - [_http.py:916] - Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-05-13 01:55:03,637 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config_sentence_transformers.json "HTTP/1.1 200 OK"
+2026-05-13 01:55:03,998 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+2026-05-13 01:55:04,016 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/README.md "HTTP/1.1 200 OK"
+2026-05-13 01:55:04,462 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+2026-05-13 01:55:04,476 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/modules.json "HTTP/1.1 200 OK"
+2026-05-13 01:55:04,779 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/sentence_bert_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-05-13 01:55:04,808 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/sentence_bert_config.json "HTTP/1.1 200 OK"
+2026-05-13 01:55:05,126 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/adapter_config.json "HTTP/1.1 404 Not Found"
+2026-05-13 01:55:05,400 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-05-13 01:55:05,415 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config.json "HTTP/1.1 200 OK"
+2026-05-13 01:55:06,883 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-05-13 01:55:07,099 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config.json "HTTP/1.1 200 OK"
+2026-05-13 01:55:07,499 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-05-13 01:55:07,544 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-05-13 01:55:08,358 - httpx - INFO - [_client.py:1025] - HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-05-13 01:55:08,791 - httpx - INFO - [_client.py:1025] - HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-05-13 01:55:10,291 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/1_Pooling/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-05-13 01:55:10,311 - httpx - INFO - [_client.py:1025] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/1_Pooling%2Fconfig.json "HTTP/1.1 200 OK"
+2026-05-13 01:55:10,686 - httpx - INFO - [_client.py:1025] - HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
+2026-05-13 01:55:15,960 - root - INFO - [main.py:62] - [startup] Loading NLP extractor (dynamic lexicon from CSV)...
+2026-05-13 01:55:19,745 - root - INFO - [main.py:64] - [startup] Groq client ready.
+2026-05-13 01:59:56,389 - httpx - INFO - [_client.py:1740] - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-13 02:00:03,925 - httpx - INFO - [_client.py:1740] - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-13 02:00:09,260 - httpx - INFO - [_client.py:1740] - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-13 02:00:11,943 - httpx - INFO - [_client.py:1740] - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
